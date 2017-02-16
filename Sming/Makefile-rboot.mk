@@ -29,7 +29,7 @@ RBOOT_ROM_0      ?= rom0
 RBOOT_ROM_1      ?= rom1
 RBOOT_SPIFFS_0   ?= 0x100000
 RBOOT_SPIFFS_1   ?= 0x300000
-RBOOT_LD_0 ?= rom0.ld
+RBOOT_LD_0 ?= $(SMING_HOME)/compiler/ld/rboot.rom0.ld
 RBOOT_LD_1 ?= rom1.ld
 # esptool2 path
 ESPTOOL2 ?= esptool2
@@ -58,6 +58,13 @@ SPI_SPEED ?= 40
 SPI_MODE ?= qio
 # SPI_SIZE: 512K, 256K, 1M, 2M, 4M
 SPI_SIZE ?= 512K
+
+### Debug output parameters
+# By default `debugf` does not print file name and line number. If you want this enabled set the directive below to 1
+DEBUG_PRINT_FILENAME_AND_LINE ?= 0
+
+# Defaut debug verbose level is INFO, where DEBUG=3 INFO=2 WARNING=1 ERROR=0 
+DEBUG_VERBOSE_LEVEL ?= 2
 
 ## ESP_HOME sets the path where ESP tools and SDK are located.
 ## Windows:
@@ -166,8 +173,9 @@ MODULES      ?= app     # default to app if not set by user
 MODULES      += $(THIRD_PARTY_DIR)/rboot/appcode
 EXTRA_INCDIR ?= include # default to include if not set by user
 
+ENABLE_CUSTOM_LWIP ?= 1
 ifeq ($(ENABLE_CUSTOM_LWIP), 1)
-	LWIP_INCDIR = $(SMING_HOME)/third-party/esp-open-lwip	
+	LWIP_INCDIR = $(SMING_HOME)/third-party/esp-open-lwip/include	
 endif
 
 EXTRA_INCDIR += $(SMING_HOME)/include $(SMING_HOME)/ $(LWIP_INCDIR) $(SMING_HOME)/system/include $(SMING_HOME)/Wiring $(SMING_HOME)/Libraries $(SMING_HOME)/SmingCore $(SMING_HOME)/Services/SpifFS $(SDK_BASE)/../include $(THIRD_PARTY_DIR)/rboot $(THIRD_PARTY_DIR)/rboot/appcode $(THIRD_PARTY_DIR)/spiffs/src
@@ -189,7 +197,9 @@ else
 	CFLAGS += -Os -g
 	STRIP := @true
 endif
-CXXFLAGS	= $(CFLAGS) -fno-rtti -fno-exceptions -std=c++11 -felide-constructors
+#Append debug options
+CFLAGS  += -DCUST_FILE_BASE=$$(subst /,_,$(subst .,_,$$*)) -DDEBUG_VERBOSE_LEVEL=$(DEBUG_VERBOSE_LEVEL) -DDEBUG_PRINT_FILENAME_AND_LINE=$(DEBUG_PRINT_FILENAME_AND_LINE)
+CXXFLAGS = $(CFLAGS) -fno-rtti -fno-exceptions -std=c++11 -felide-constructors
 
 ENABLE_CUSTOM_HEAP ?= 0
  

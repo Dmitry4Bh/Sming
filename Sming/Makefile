@@ -109,6 +109,13 @@ COM_SPEED_ESPTOOL ?= $(COM_SPEED)
 # Default COM port speed (used in code)
 COM_SPEED_SERIAL  ?= $(COM_SPEED)
 
+### Debug output parameters
+# By default `debugf` does not print file name and line number. If you want this enabled set the directive below to 1
+DEBUG_PRINT_FILENAME_AND_LINE ?= 0
+
+# Defaut debug verbose level is INFO, where DEBUG=3 INFO=2 WARNING=1 ERROR=0 
+DEBUG_VERBOSE_LEVEL ?= 2
+
 # Sming Framework Path
 SMF = $(SMING_HOME)
 
@@ -116,6 +123,7 @@ SPIFF_FILES = files
 
 BUILD_BASE	= out/build
 FW_BASE		= out/firmware
+USER_LIBDIR = compiler/lib
 
 LIBSMING = libsming
 ifeq ($(ENABLE_SSL),1)
@@ -162,6 +170,7 @@ endif
 
 # => Open Source LWIP
 LIBLWIP = lwip
+ENABLE_CUSTOM_LWIP ?= 1
 ENABLE_ESPCONN ?= 0
 ifeq ($(ENABLE_CUSTOM_LWIP), 1)
 	THIRD_PARTY_DATA += third-party/esp-open-lwip/Makefile.open
@@ -175,7 +184,6 @@ ifeq ($(ENABLE_CUSTOM_LWIP), 1)
 endif
 
 # libraries used in this project, mainly provided by the SDK
-USER_LIBDIR = compiler/lib
 LIBS		= microc microgcc hal phy pp net80211 $(LIBLWIP) wpa main
 ifeq ($(ENABLE_CUSTOM_PWM), 1)
 	THIRD_PARTY_DATA += third-party/pwm/pwm.c
@@ -192,6 +200,10 @@ else ifeq ($(ENABLE_GDB), 1)
 else
 	CFLAGS += -Os -g
 endif
+
+#Append debug options
+CFLAGS += -DCUST_FILE_BASE=$$(subst /,_,$(subst .,_,$$*)) -DDEBUG_VERBOSE_LEVEL=$(DEBUG_VERBOSE_LEVEL) -DDEBUG_PRINT_FILENAME_AND_LINE=$(DEBUG_PRINT_FILENAME_AND_LINE)
+
 CXXFLAGS	= $(CFLAGS) -fno-rtti -fno-exceptions -std=c++11 -felide-constructors
 
 # linker flags used to generate the main object file
@@ -261,6 +273,7 @@ EXTRA_INCDIR	:= $(addprefix -I,$(EXTRA_INCDIR))
 MODULE_INCDIR	:= $(addsuffix /include,$(INCDIR))
 
 SAMPLES_DIRS := $(shell ls -1 ../samples)
+THIRD_PARTY_DIRS := $(shell ls -1 third-party )
 DOXYGEN := $(shell command -v doxygen 2> /dev/null)
 
 V ?= $(VERBOSE)
@@ -393,7 +406,7 @@ third-party/%:
 	$(vecho) "Fetching $(dir $@) ..."
 	$(Q) $(GIT) submodule update --init --recursive $(dir $@)
 	$(Q) touch $(patsubst third-party/%/,third-party/.patches/%.patch, $(dir $@))
-	$(Q) -cd $(dir $@); $(GIT) apply -v $(patsubst third-party/%/,$(SMING_HOME)/third-party/.patches/%.patch, $(dir $@))
+	$(Q) -cd $(dir $@); $(GIT) apply -v $(patsubst third-party/%/,$(SMING_HOME)/third-party/.patches/%.patch, $(dir $@)) --ignore-whitespace --whitespace=nowarn
 # if the new submodule brings source code files that need to be compiled inside Sming
 # then we need somehow to be able to "see" these new files. 
 # For now we solve this by "reloading" the makefile after fetching a module.
@@ -408,6 +421,18 @@ samples-clean:
 	$(Q) for dir in $(SAMPLES_DIRS); do \
           $(MAKE) -C $(SMING_HOME)/../samples/$$dir clean; \
         done
+        
+third-party-clean:
+	$(Q) for dir in $(THIRD_PARTY_DIRS); do \
+          rm -rf third-party/$$dir; \
+        done
+	$(Q) $(GIT) checkout third-party     
+       
+dist-clean: clean samples-clean third-party-clean
+	$(Q) for file in $(shell ls $(USER_LIBDIR)/lib*.a ); do \
+ 	   rm $$file; \
+ 	done
+	$(Q) $(GIT) checkout $(USER_LIBDIR)
 
 $(foreach bdir,$(BUILD_DIR),$(eval $(call compile-objects,$(bdir))))
 
